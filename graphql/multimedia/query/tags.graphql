@@ -1,0 +1,38 @@
+mutation CreateTag($input: EnsureTagModelInput!) {
+    result: ensureTag(tag: $input) {
+        __typename
+        ... on Tag {
+            id
+        }
+        ... on ProblemInterface {
+            message
+        }
+    }
+}
+
+mutation UpdateTag($input: UpdateTagInput!) {
+    result: updateTag(tag: $input) {
+        __typename
+        ... on Tag {
+            id
+        }
+        ... on ProblemInterface {
+            message
+        }
+    }
+}
+
+query searchTags($input: TagsFilterInput, $sort: TagsSort!) {
+    result: tags(filter: $input, limit: 10, skip: 0, sort: $sort) {
+        __typename
+        ... on TagsPagination {
+            items {
+                name
+                id
+            }
+        }
+        ... on ProblemInterface {
+            message
+        }
+    }
+}

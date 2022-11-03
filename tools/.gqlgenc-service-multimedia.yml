@@ -1,0 +1,11 @@
+model:
+  filename: ./../graphql/multimedia/models_gen.go
+client:
+  filename: ./../graphql/multimedia/client.go
+models:
+  Date:
+    model: github.com/99designs/gqlgen/graphql.Time
+endpoint:
+  url: https://multimedia.dev-kub-1-18.hsmdev.ru/graphql
+query:
+  - "./../graphql/multimedia/query/*.graphql"
