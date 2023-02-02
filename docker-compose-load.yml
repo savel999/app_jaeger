@@ -1,0 +1,56 @@
+version: '3.9'
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "6831:6831/udp"
+      - "16686:16686"
+      - "16685:16685"
+      - "14250:14250"
+  collector-agent:
+    image: otel/opentelemetry-collector-contrib:latest
+    volumes:
+      - ./collector-config/collector-agent-loadbalancing.yaml:/etc/collector-agent.yaml
+    command: [ "--config=/etc/collector-agent.yaml" ]
+    ports:
+#      - "1888:1888"   # pprof extension
+#      - "13133:13133" # health_check extension
+      - "4317:4317"        # OTLP gRPC receiver
+      - "4318:4318"        # OTLP HTTP receiver
+      - "55678:55678" # zpages extension
+  collector-gateway-1:
+    image: otel/opentelemetry-collector-contrib:latest
+    volumes:
+      - ./collector-config/collector-gateway1.yaml:/etc/collector-gateway.yaml
+    command: [ "--config=/etc/collector-gateway.yaml" ]
+    ports:
+      - "1888:1888"   # pprof extension
+      #- "23133:23133" # health_check extension
+      - "5317:5317"        # OTLP gRPC receiver
+      - "5318:5318"        # OTLP HTTP receiver
+      - "55679:55679" # zpages extension
+    depends_on:
+      - jaeger
+
+  collector-gateway-2:
+    image: otel/opentelemetry-collector-contrib:latest
+    volumes:
+      - ./collector-config/collector-gateway2.yaml:/etc/collector-gateway.yaml
+    command: [ "--config=/etc/collector-gateway.yaml" ]
+    ports:
+      #- "2888:2888"   # pprof extension
+      #- "13133:13133" # health_check extension
+      - "6317:6317"        # OTLP gRPC receiver
+      - "6318:6318"        # OTLP HTTP receiver
+      - "55680:55680" # zpages extension
+    depends_on:
+      - jaeger
+
+#  hotrod:
+#    image: jaegertracing/example-hotrod:latest
+#    ports:
+#      - "8080:8080"
+#    command: [ "all" ]
+#    environment:
+#      - JAEGER_AGENT_HOST=jaeger
+#      - JAEGER_AGENT_PORT=6831

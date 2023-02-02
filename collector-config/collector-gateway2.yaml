@@ -1,0 +1,32 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:6318
+      grpc:
+        endpoint: 0.0.0.0:6317
+processors:
+  resource:
+    attributes:
+      - key: test.key
+        value: "collector2"
+        action: insert
+
+exporters:
+  logging:
+    loglevel: info
+  jaeger:
+    endpoint: "jaeger:14250"
+    tls:
+      insecure: true
+
+extensions:
+  zpages:
+    endpoint: :55680
+service:
+  extensions: [zpages]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [resource]
+      exporters: [jaeger, logging]
