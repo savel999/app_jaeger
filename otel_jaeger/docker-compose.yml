@@ -1,0 +1,23 @@
+version: '3.9'
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.42.0
+    ports:
+      - "6831:6831/udp"
+      - "16686:16686"
+      - "16685:16685"
+      - "14250:14250"
+
+  collector-gateway:
+    image: otel/opentelemetry-collector-contrib:0.71.0
+    volumes:
+      - ./collector-gateway.yaml:/etc/collector-gateway.yaml
+    command: [ "--config=/etc/collector-gateway.yaml" ]
+    ports:
+      - "1888:1888"   # pprof extension
+      - "13133:13133" # health_check extension
+      - "4317:4317"        # OTLP gRPC receiver
+      - "4318:4318"        # OTLP HTTP receiver
+      - "55670:55679" # zpages extension
+    depends_on:
+      - jaeger
