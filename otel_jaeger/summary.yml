@@ -1,0 +1,212 @@
+apiVersion: v1
+data:
+  collector_gateway: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+          grpc:
+            endpoint: 0.0.0.0:4317
+    processors:
+      tail_sampling:
+        decision_wait: 5s
+        num_traces: 1000
+        expected_new_traces_per_sec: 1000
+        policies:
+          [
+            {
+              name: bad-traces,
+              type: status_code,
+              status_code: { status_codes: [ ERROR ] }
+            },
+            {
+              name: and-policy-1,
+              type: and,
+              and: {
+                and_sub_policy:
+                  [
+                    {
+                      name: all-traces-OK,
+                      type: status_code,
+                      status_code: { status_codes: [ OK ] },
+                    },
+                    {
+                      name: all-traces-1,
+                      type: probabilistic,
+                      probabilistic: { sampling_percentage: 1 }
+                    },
+                  ]
+              }
+            },
+          ]
+
+
+    exporters:
+      logging:
+        loglevel: info
+      jaeger:
+        endpoint: "http://service-jaeger-all-in-one.esavelyev:14250"
+        tls:
+          insecure: true
+    extensions:
+      health_check:
+      pprof:
+        endpoint: :1888
+      zpages:
+        endpoint: :55679
+    service:
+      extensions: [pprof, zpages, health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          #processors: [tail_sampling]
+          exporters: [jaeger, logging]
+  other_server_block.conf: '######### OTHER SERVER #######....'
+kind: ConfigMap
+metadata:
+  name: otel-config-map
+  namespace: esavelyev
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: service-jaeger-all-in-one
+  name: service-jaeger-all-in-one
+  namespace: esavelyev
+spec:
+  ports:
+  - name: jaeger-ui-http
+    port: 16686
+    protocol: TCP
+    targetPort: 16686
+  - name: jaeger-ui-grpc
+    port: 16685
+    protocol: TCP
+    targetPort: 16685
+  - name: grpc-collector
+    port: 14250
+    protocol: TCP
+    targetPort: 14250
+  - name: jaeger-client
+    port: 6831
+    protocol: UDP
+    targetPort: 6831
+  selector:
+    app: service-jaeger-all-in-one
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: service-otel-collector
+  name: service-otel-collector
+  namespace: esavelyev
+spec:
+  ports:
+  - name: otlp-grpc
+    port: 4317
+    protocol: TCP
+    targetPort: 4317
+  - name: otlp-http
+    port: 4318
+    protocol: TCP
+    targetPort: 4318
+  - name: pprof-extension
+    port: 1888
+    protocol: TCP
+    targetPort: 1888
+  - name: health-check-extension
+    port: 13133
+    protocol: TCP
+    targetPort: 13133
+  - name: zpages-extension
+    port: 55679
+    protocol: TCP
+    targetPort: 55679
+  selector:
+    app: service-otel-collector
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: service-jaeger-all-in-one
+  name: service-jaeger-all-in-one
+  namespace: esavelyev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-jaeger-all-in-one
+  template:
+    metadata:
+      labels:
+        app: service-jaeger-all-in-one
+    spec:
+      containers:
+      - image: jaegertracing/all-in-one:1.42.0
+        imagePullPolicy: IfNotPresent
+        name: service-jaeger-all-in-one
+        ports:
+        - containerPort: 6831
+        - containerPort: 16686
+        - containerPort: 16685
+        - containerPort: 14250
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: service-otel-collector
+  name: service-otel-collector
+  namespace: esavelyev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-otel-collector
+  template:
+    metadata:
+      labels:
+        app: service-otel-collector
+    spec:
+      containers:
+      - args:
+        - --config=/etc/collector-gateway.yaml
+        command:
+        - /otelcol-contrib
+        image: otel/opentelemetry-collector-contrib:0.71.0
+        imagePullPolicy: IfNotPresent
+        name: service-otel-collector
+        ports:
+        - containerPort: 1888
+        - containerPort: 13133
+        - containerPort: 4317
+        - containerPort: 4318
+        - containerPort: 55679
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /etc/collector-gateway.yaml
+          name: mnt-cnfg
+          subPath: collector_gateway
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - configMap:
+          name: otel-config-map
+        name: mnt-cnfg

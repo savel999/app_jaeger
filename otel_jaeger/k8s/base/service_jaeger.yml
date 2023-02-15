@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: service-jaeger-all-in-one
+  labels:
+    app: service-jaeger-all-in-one
+spec:
+  ports:
+    - port: 16686
+      targetPort: 16686
+      protocol: TCP
+      name: jaeger-ui-http
+    - port: 16685
+      targetPort: 16685
+      protocol: TCP
+      name: jaeger-ui-grpc
+    - port: 14250
+      targetPort: 14250
+      protocol: TCP
+      name: grpc-collector
+    - port: 6831
+      targetPort: 6831
+      protocol: UDP
+      name: jaeger-client
+  selector:
+    app: service-jaeger-all-in-one

@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: service-jaeger-all-in-one
+  labels:
+    app: service-jaeger-all-in-one
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-jaeger-all-in-one
+  template:
+    metadata:
+      labels:
+        app: service-jaeger-all-in-one
+    spec:
+      containers:
+        - name: service-jaeger-all-in-one
+          image: jaegertracing/all-in-one:1.42.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6831
+            - containerPort: 16686
+            - containerPort: 16685
+            - containerPort: 14250
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      terminationGracePeriodSeconds: 60
