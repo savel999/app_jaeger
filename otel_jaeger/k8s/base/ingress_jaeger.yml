@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: service-jaeger-all-in-one
+  namespace: esavelyev
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dev
+    kubernetes.io/tls-acme: "true"
+spec:
+  rules:
+  - host: jaeger-esavelyev.k8s.hsmdev.ru
+    http:
+      paths:
+      - backend:
+          service:
+            name: service-jaeger-all-in-one
+            port:
+              name: jaeger-ui-http
+        path: /
+        pathType: ImplementationSpecific

@@ -7,6 +7,7 @@ services:
       - "16686:16686"
       - "16685:16685"
       - "14250:14250"
+      - "14271:14271"
 #  collector-agent:
 #    image: otel/opentelemetry-collector-contrib:latest
 #    volumes:
