@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: service-grafana
+  labels:
+    app: service-grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-grafana
+  template:
+    metadata:
+      labels:
+        app: service-grafana
+    spec:
+      containers:
+        - name: service-grafana
+          image: grafana/grafana:9.4.3
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Admin"
+            - name: GF_AUTH_DISABLE_LOGIN_FORM
+              value: "true"
+            - name: GF_FEATURE_TOGGLES_ENABLE
+              value: "traceqlEditor"
+          volumeMounts:
+            - name: grafana-mnt-cnfg
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: grafana_datasources
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: grafana-mnt-cnfg
+          configMap:
+            name: grafana-config-map

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: service-otel-collector
+  labels:
+    app: service-otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-otel-collector
+  template:
+    metadata:
+      labels:
+        app: service-otel-collector
+    spec:
+      containers:
+        - name: service-otel-collector
+          image: otel/opentelemetry-collector-contrib:0.71.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - "/otelcol-contrib"
+          args:
+            - "--config=/etc/collector-gateway.yaml"
+          ports:
+            - containerPort: 1888
+            - containerPort: 13133
+            - containerPort: 4317
+            - containerPort: 4318
+            - containerPort: 55679
+          volumeMounts:
+            - name: mnt-cnfg
+              mountPath: /etc/collector-gateway.yaml
+              subPath: collector_gateway
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: mnt-cnfg
+          configMap:
+            name: otel-config-map

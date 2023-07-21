@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: service-tempo
+  labels:
+    app: service-tempo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-tempo
+  template:
+    metadata:
+      labels:
+        app: service-tempo
+    spec:
+      containers:
+        - name: service-tempo
+          image: grafana/tempo:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - "/tempo"
+          args:
+            - "-config.file=/etc/tempo.yaml"
+          volumeMounts:
+            - name: tempo-mnt-cnfg
+              mountPath: /etc/tempo.yaml
+              subPath: tempo_config
+            - name: tempo-store
+              mountPath: /tmp/tempo
+          ports:
+            - containerPort: 3200
+            - containerPort: 9095
+            - containerPort: 4317
+            - containerPort: 4318
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: tempo-mnt-cnfg
+          configMap:
+            name: tempo-config-map
+        - name: tempo-store
+          emptyDir:
+           sizeLimit: 500Mi

@@ -1,0 +1,390 @@
+apiVersion: v1
+data:
+  grafana_datasources: |
+    apiVersion: 1
+
+    datasources:
+    - name: Tempo
+      type: tempo
+      access: proxy
+      orgId: 1
+      url: http://service-tempo.esavelyev:3200
+      basicAuth: false
+      isDefault: true
+      version: 1
+      editable: false
+      apiVersion: 1
+      uid: tempo
+      jsonData:
+        httpMethod: GET
+        serviceMap:
+          datasourceUid: prometheus
+  other_server_block.conf: '######### OTHER SERVER #######....'
+kind: ConfigMap
+metadata:
+  name: grafana-config-map
+  namespace: esavelyev
+---
+apiVersion: v1
+data:
+  collector_gateway: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+          grpc:
+            endpoint: 0.0.0.0:4317
+    processors:
+      tail_sampling:
+        decision_wait: 5s
+        num_traces: 1000
+        expected_new_traces_per_sec: 1000
+        policies:
+          [
+            {
+              name: bad-traces,
+              type: status_code,
+              status_code: { status_codes: [ ERROR ] }
+            },
+            {
+              name: and-policy-1,
+              type: and,
+              and: {
+                and_sub_policy:
+                  [
+                    {
+                      name: all-traces-OK,
+                      type: status_code,
+                      status_code: { status_codes: [ OK ] },
+                    },
+                    {
+                      name: all-traces-1,
+                      type: probabilistic,
+                      probabilistic: { sampling_percentage: 1 }
+                    },
+                  ]
+              }
+            },
+          ]
+
+
+    exporters:
+      logging:
+        loglevel: info
+      otlp:
+        endpoint: "http://service-tempo.esavelyev:4317"
+        tls:
+          insecure: true
+    extensions:
+      health_check:
+      pprof:
+        endpoint: :1888
+      zpages:
+        endpoint: :55679
+    service:
+      extensions: [pprof, zpages, health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          #processors: [tail_sampling]
+          exporters: [otlp, logging]
+  other_server_block.conf: '######### OTHER SERVER #######....'
+kind: ConfigMap
+metadata:
+  name: otel-config-map
+  namespace: esavelyev
+---
+apiVersion: v1
+data:
+  other_server_block.conf: '######### OTHER SERVER #######....'
+  tempo_config: |
+    server:
+      http_listen_port: 3200
+
+    distributor:
+      receivers:                           # this configuration will listen on all ports and protocols that tempo is capable of.
+        otlp:
+          protocols:
+            http:
+            grpc:
+        opencensus:
+
+    ingester:
+      max_block_duration: 5m               # cut the headblock when this much time passes. this is being set for demo purposes and should probably be left alone normally
+
+    compactor:
+      compaction:
+        block_retention: 1h                # overall Tempo trace retention. set for demo purposes
+
+    #metrics_generator:
+    #  registry:
+    #    external_labels:
+    #      source: tempo
+    #      cluster: docker-compose
+    #  storage:
+    #    path: /tmp/tempo/generator/wal
+    #    remote_write:
+    #      - url: http://prometheus:9090/api/v1/write
+    #        send_exemplars: true
+
+    storage:
+      trace:
+        backend: local                     # backend configuration to use
+        wal:
+          path: /tmp/tempo/wal             # where to store the the wal locally
+        local:
+          path: /tmp/tempo/blocks
+
+    overrides:
+      metrics_generator_processors: [service-graphs, span-metrics] # enables metrics generator
+kind: ConfigMap
+metadata:
+  name: tempo-config-map
+  namespace: esavelyev
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: service-grafana
+  name: service-grafana
+  namespace: esavelyev
+spec:
+  ports:
+  - name: grafana-ui-http
+    port: 3000
+    protocol: TCP
+    targetPort: 3000
+  selector:
+    app: service-grafana
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: service-otel-collector
+  name: service-otel-collector
+  namespace: esavelyev
+spec:
+  ports:
+  - name: otlp-grpc
+    port: 4317
+    protocol: TCP
+    targetPort: 4317
+  - name: otlp-http
+    port: 4318
+    protocol: TCP
+    targetPort: 4318
+  - name: pprof-extension
+    port: 1888
+    protocol: TCP
+    targetPort: 1888
+  - name: health-check-extension
+    port: 13133
+    protocol: TCP
+    targetPort: 13133
+  - name: zpages-extension
+    port: 55679
+    protocol: TCP
+    targetPort: 55679
+  selector:
+    app: service-otel-collector
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: service-tempo
+  name: service-tempo
+  namespace: esavelyev
+spec:
+  ports:
+  - name: tempo
+    port: 3200
+    protocol: TCP
+    targetPort: 3200
+  - name: tempo-grpc
+    port: 9095
+    protocol: TCP
+    targetPort: 9095
+  - name: otlp-grpc
+    port: 4317
+    protocol: TCP
+    targetPort: 4317
+  - name: otlp-http
+    port: 4318
+    protocol: TCP
+    targetPort: 4318
+  selector:
+    app: service-tempo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: service-grafana
+  name: service-grafana
+  namespace: esavelyev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-grafana
+  template:
+    metadata:
+      labels:
+        app: service-grafana
+    spec:
+      containers:
+      - env:
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "true"
+        - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+          value: Admin
+        - name: GF_AUTH_DISABLE_LOGIN_FORM
+          value: "true"
+        - name: GF_FEATURE_TOGGLES_ENABLE
+          value: traceqlEditor
+        image: grafana/grafana:9.4.3
+        imagePullPolicy: IfNotPresent
+        name: service-grafana
+        ports:
+        - containerPort: 3000
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+          name: grafana-mnt-cnfg
+          subPath: grafana_datasources
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - configMap:
+          name: grafana-config-map
+        name: grafana-mnt-cnfg
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: service-otel-collector
+  name: service-otel-collector
+  namespace: esavelyev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-otel-collector
+  template:
+    metadata:
+      labels:
+        app: service-otel-collector
+    spec:
+      containers:
+      - args:
+        - --config=/etc/collector-gateway.yaml
+        command:
+        - /otelcol-contrib
+        image: otel/opentelemetry-collector-contrib:0.71.0
+        imagePullPolicy: IfNotPresent
+        name: service-otel-collector
+        ports:
+        - containerPort: 1888
+        - containerPort: 13133
+        - containerPort: 4317
+        - containerPort: 4318
+        - containerPort: 55679
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /etc/collector-gateway.yaml
+          name: mnt-cnfg
+          subPath: collector_gateway
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - configMap:
+          name: otel-config-map
+        name: mnt-cnfg
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: service-tempo
+  name: service-tempo
+  namespace: esavelyev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-tempo
+  template:
+    metadata:
+      labels:
+        app: service-tempo
+    spec:
+      containers:
+      - args:
+        - -config.file=/etc/tempo.yaml
+        command:
+        - /tempo
+        image: grafana/tempo:latest
+        imagePullPolicy: IfNotPresent
+        name: service-tempo
+        ports:
+        - containerPort: 3200
+        - containerPort: 9095
+        - containerPort: 4317
+        - containerPort: 4318
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /etc/tempo.yaml
+          name: tempo-mnt-cnfg
+          subPath: tempo_config
+        - mountPath: /tmp/tempo
+          name: tempo-store
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - configMap:
+          name: tempo-config-map
+        name: tempo-mnt-cnfg
+      - emptyDir:
+          sizeLimit: 500Mi
+        name: tempo-store
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dev
+    kubernetes.io/tls-acme: "true"
+  name: service-tempo
+  namespace: esavelyev
+spec:
+  rules:
+  - host: tempo-esavelyev.k8s.hsmdev.ru
+    http:
+      paths:
+      - backend:
+          service:
+            name: service-grafana
+            port:
+              name: grafana-ui-http
+        path: /
+        pathType: ImplementationSpecific

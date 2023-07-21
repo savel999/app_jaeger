@@ -1,0 +1,26 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: grafana-config-map
+data:
+  grafana_datasources: |
+    apiVersion: 1
+
+    datasources:
+    - name: Tempo
+      type: tempo
+      access: proxy
+      orgId: 1
+      url: http://service-tempo.esavelyev:3200
+      basicAuth: false
+      isDefault: true
+      version: 1
+      editable: false
+      apiVersion: 1
+      uid: tempo
+      jsonData:
+        httpMethod: GET
+        serviceMap:
+          datasourceUid: prometheus
+  other_server_block.conf: |
+    ######### OTHER SERVER #######....

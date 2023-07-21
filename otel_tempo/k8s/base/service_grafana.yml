@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: service-grafana
+  labels:
+    app: service-grafana
+spec:
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: grafana-ui-http
+  selector:
+    app: service-grafana

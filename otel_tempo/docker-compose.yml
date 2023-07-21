@@ -1,0 +1,37 @@
+version: '3.9'
+services:
+  tempo:
+    image: grafana/tempo:latest
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./shared/tempo.yaml:/etc/tempo.yaml
+      - ./tempo-data:/tmp/tempo
+    ports:
+      - "3200:3200"   # tempo
+      - "9095:9095" # tempo grpc
+      - "4317"  # otlp grpc
+      - "14318:4318"  # otlp http
+
+  grafana:
+    image: grafana/grafana:9.4.3
+    volumes:
+      - ./shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+    ports:
+      - "3000:3000"
+
+  collector-gateway:
+    image: otel/opentelemetry-collector-contrib:0.71.0
+    volumes:
+      - ./collector-gateway.yaml:/etc/collector-gateway.yaml
+    command: [ "--config=/etc/collector-gateway.yaml" ]
+    ports:
+      - "1888:1888"   # pprof extension
+      - "13133:13133" # health_check extension
+      - "4317:4317"        # OTLP gRPC receiver
+      - "4318:4318"        # OTLP HTTP receiver
+      - "55679:55679" # zpages extension
