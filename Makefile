@@ -1,10 +1,20 @@
 .PHONY: otel_up
 otel_up:
-	x-www-browser http://localhost:16686/search
-	docker-compose -f ./otel_jaeger/docker-compose.yml up
+	URL="http://localhost:16686/search"
+	OS=$(uname -s)
+
+	echo $OS
+
+	case "${OS}" in
+		Linux*)     x-www-browser "$URL" || xdg-open "$URL" || echo "Не удалось открыть браузер";;
+		Darwin*)    open "$URL";;
+		*)          echo "Неизвестная ОС";;
+	esac
+
+	docker-compose -f ./jaeger_v2/docker-compose.yml up
 
 otel_down:
-	docker-compose -f ./otel_jaeger/docker-compose.yml down -v
+	docker-compose -f ./jaeger_v2/docker-compose.yml down -v
 
 ################################################################################################################
 
