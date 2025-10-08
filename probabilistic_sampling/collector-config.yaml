@@ -1,0 +1,29 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  probabilistic_sampler:
+    sampling_percentage: 30.0    # 30% трасс (решение принимается на основании trace_id)
+    hash_seed: 42               # Seed для детерминированности
+
+exporters:
+  jaeger:
+    endpoint: "jaeger:14250"
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+  pprof:
+  zpages:
+
+service:
+  extensions: [pprof, zpages, health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [probabilistic_sampler]
+      exporters: [jaeger]
