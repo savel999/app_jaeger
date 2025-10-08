@@ -1,0 +1,43 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  tail_sampling:
+    decision_wait: 5s
+    num_traces: 1000
+    expected_new_traces_per_sec: 1000
+    policies:
+      [
+        {
+          name: bad-traces,
+          type: status_code,
+          status_code: { status_codes: [ ERROR ] }
+        },
+        {
+          name: latency-policy,
+          type: latency,
+          latency: { threshold_ms: 2000 }
+        }
+      ]
+
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+  pprof:
+  zpages:
+
+service:
+  extensions: [pprof, zpages, health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [tail_sampling]
+      exporters: [otlp/jaeger]
