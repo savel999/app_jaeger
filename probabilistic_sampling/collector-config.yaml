@@ -10,8 +10,8 @@ processors:
     hash_seed: 42               # Seed для детерминированности
 
 exporters:
-  jaeger:
-    endpoint: "jaeger:14250"
+  otlp/jaeger:
+    endpoint: jaeger:4317
     tls:
       insecure: true
 
@@ -26,4 +26,4 @@ service:
     traces:
       receivers: [otlp]
       processors: [probabilistic_sampler]
-      exporters: [jaeger]
+      exporters: [otlp/jaeger]
